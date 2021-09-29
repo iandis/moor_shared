@@ -1,7 +1,7 @@
-import 'package:moor/moor_web.dart';
+import 'package:moor_shared/src/database/database/sqljs/js_db.dart';
 
 import '../database.dart';
 
 Database constructDb({bool logStatements = false}) {
-  return Database(WebDatabase('db', logStatements: logStatements));
+  return Database(SqlJsDatabase('db'));
 }
