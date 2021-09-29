@@ -54,7 +54,7 @@ class Database extends _$Database {
   final cs = ChangeStack();
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 1;
 
   @override
   MigrationStrategy get migration {
