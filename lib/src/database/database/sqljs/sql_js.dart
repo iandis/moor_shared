@@ -21,10 +21,12 @@ Future<SqlJsWrapper> initSqlJsWrapper() async {
     functionName: 'initSqlJsWrapper',
     arguments: null,
   );
-  return SqlJsWrapper();
+  return const SqlJsWrapper();
 }
 
 class SqlJsWrapper {
+  const SqlJsWrapper();
+
   Future<void> createDb([Uint8List data]) async {
     await JsIsolatedWorker().run(
       functionName: 'sqlCreateDb',
@@ -49,6 +51,14 @@ class SqlJsWrapper {
         'args': args,
       },
     );
+  }
+
+  Future<SqlJsStatement> prepare(String sql) async {
+    final int statementId = await JsIsolatedWorker().run(
+      functionName: 'sqlSTMTPrepare',
+      arguments: sql,
+    ) as int;
+    return SqlJsStatement(id: statementId);
   }
 
   Future<int> get lastModifiedRows async {
@@ -85,5 +95,51 @@ class SqlJsWrapper {
     final LinkedHashMap<dynamic, dynamic> firstRow = results.first as LinkedHashMap<dynamic, dynamic>;
     final dynamic firstValue = (firstRow['values'] as List<dynamic>).first;
     return firstValue;
+  }
+}
+
+class SqlJsStatement {
+  const SqlJsStatement({
+    @required this.id,
+  }) : assert(id != null);
+
+  final int id;
+
+  Future<void> bind(List<dynamic> data) async {
+    await JsIsolatedWorker().run(
+      functionName: 'sqlSTMTBind',
+      arguments: <String, dynamic>{
+        'id': id,
+        'data': data,
+      },
+    );
+  }
+
+  Future<bool> step() async {
+    return await JsIsolatedWorker().run(
+      functionName: 'sqlSTMTStep',
+      arguments: id,
+    ) as bool;
+  }
+
+  Future<List<dynamic>> getCurrentRow() async {
+    return await JsIsolatedWorker().run(
+      functionName: 'sqlSTMTGetCurrentRow',
+      arguments: id,
+    ) as List<dynamic>;
+  }
+
+  Future<List<String>> getColumnNames() async {
+    return await JsIsolatedWorker().run(
+      functionName: 'sqlSTMTGetColumnNames',
+      arguments: id,
+    ) as List<String>;
+  }
+
+  Future<void> free() async {
+    await JsIsolatedWorker().run(
+      functionName: 'sqlSTMTFree',
+      arguments: id,
+    );
   }
 }

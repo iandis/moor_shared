@@ -56,9 +56,26 @@ class _SqlJsDelegate extends DatabaseDelegate {
   }
 
   @override
-  Future<void> runBatched(BatchedStatements statements) {
-    // TODO: implement runBatched
-    throw UnimplementedError();
+  Future<void> runBatched(BatchedStatements statements) async {
+    final List<SqlJsStatement> sqlJsStatements = <SqlJsStatement>[];
+
+    for (final String statement in statements.statements) {
+      final SqlJsStatement sqlJsStatement = await _sqlJsWrapper.prepare(statement);
+      sqlJsStatements.add(sqlJsStatement);
+    }
+
+    for (final ArgumentsForBatchedStatement batchedStmtArg in statements.arguments) {
+      final SqlJsStatement sqlJsStatement = sqlJsStatements[batchedStmtArg.statementIndex];
+
+      await sqlJsStatement.bind(batchedStmtArg.arguments);
+      await sqlJsStatement.step();
+    }
+
+    for (final SqlJsStatement sqlJsStatement in sqlJsStatements) {
+      await sqlJsStatement.free();
+    }
+
+    await _handlePotentialUpdate();
   }
 
   @override
@@ -75,9 +92,24 @@ class _SqlJsDelegate extends DatabaseDelegate {
   }
 
   @override
-  Future<QueryResult> runSelect(String statement, List<Object> args) {
-    // TODO: implement runSelect
-    throw UnimplementedError();
+  Future<QueryResult> runSelect(String statement, List<Object> args) async {
+    // todo at least for stream queries we should cache prepared statements.
+    final SqlJsStatement sqlJsStatement = await _sqlJsWrapper.prepare(statement);
+    await sqlJsStatement.bind(args);
+
+    List<String> columnNames;
+    final List<List<dynamic>> rows = <List<dynamic>>[];
+
+    while (await sqlJsStatement.step()) {
+      columnNames ??= await sqlJsStatement.getColumnNames();
+      final List<dynamic> currentRow = await sqlJsStatement.getCurrentRow();
+      rows.add(currentRow);
+    }
+
+    columnNames ??= <String>[]; // assume no column names when there were no rows
+
+    await sqlJsStatement.free();
+    return QueryResult(columnNames, rows);
   }
 
   @override
@@ -106,8 +138,7 @@ class _SqlJsDelegate extends DatabaseDelegate {
   TransactionDelegate get transactionDelegate => const NoTransactionDelegate();
 
   @override
-  DbVersionDelegate get versionDelegate =>
-      _versionDelegate ??= _WebVersionDelegate(this);
+  DbVersionDelegate get versionDelegate => _versionDelegate ??= _WebVersionDelegate(this);
   DbVersionDelegate _versionDelegate;
 }
 

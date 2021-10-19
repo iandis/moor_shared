@@ -12,6 +12,13 @@
  * @property {any[]} args
  */
 
+/**
+ * @typedef SqlJsSTMTBindParams
+ * @type {object}
+ * @property {number} id
+ * @property {any} data
+ */
+
 class SqlJsWorkerError {
     /**
      * 
@@ -104,3 +111,97 @@ function sqlClose(_) {
     db = undefined;
 }
 
+// STATEMENTS
+
+/**
+ * 
+ * @param {string} sql 
+ * @returns {number}
+ */
+function sqlSTMTPrepare(sql) {
+    if (typeof SQL === 'undefined' || typeof db === 'undefined') {
+        throw SqlJsWorkerError('Database has not been initialized!');
+    }
+
+    const statement = db.prepare(sql);
+    _resetIdIfReachedMax();
+    const statementId = _statementIds++;
+    _statements[statementId] = statement;
+    return statementId;
+}
+
+/**
+ * 
+ * @param {SqlJsSTMTBindParams} args 
+ */
+function sqlSTMTBind(args) {
+    const storedStatement = _statements[args.id];
+    if (storedStatement) {
+        storedStatement.bind(args.data);
+    }
+    throw SqlJsWorkerError('Statement object undefined!');
+}
+
+/**
+ * 
+ * @param {number} statementId
+ * @returns {boolean}
+ */
+function sqlSTMTStep(statementId) {
+    const storedStatement = _statements[statementId];
+    if (storedStatement) {
+        return storedStatement.step();
+    }
+    throw SqlJsWorkerError('Statement object undefined!');
+}
+
+/**
+ * 
+ * @param {number} statementId 
+ * @returns {any[]}
+ */
+
+function sqlSTMTGetCurrentRow(statementId) {
+    const storedStatement = _statements[statementId];
+    if (storedStatement) {
+        return storedStatement.get();
+    }
+    throw SqlJsWorkerError('Statement object undefined!');
+}
+
+/**
+ * 
+ * @param {number} statementId 
+ * @returns {string[]}
+ */
+function sqlSTMTGetColumnNames(statementId) {
+    const storedStatement = _statements[statementId];
+    if (storedStatement) {
+        return storedStatement.getColumnNames();
+    }
+    throw SqlJsWorkerError('Statement object undefined!');
+}
+
+/**
+ * 
+ * @param {number} statementId 
+ */
+
+function sqlSTMTFree(statementId) {
+    const storedStatement = _statements[statementId];
+    if (storedStatement) {
+        storedStatement.free();
+        delete storedStatement[statementId];
+    }
+    throw SqlJsWorkerError('Statement object undefined!');
+}
+
+let _statementIds = 0;
+
+const _resetIdIfReachedMax = () => {
+    if (_statementIds >= 1e9) {
+        _statementIds = 0;
+    }
+}
+
+const _statements = {};
